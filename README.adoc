@@ -16,7 +16,7 @@ You'll build an ASP.NET WebAPI site that will run on your development machine. Y
 
 With this site, you'll be able to perform all the basic CRUD (Create,Read,Update,Delete) operations.
 
-In this demonstration, you'll be interacting with Profiles, which consist of "first name" and "last name". The Couchbase database will contain one "bucket" that contains people documents. Each document will be represented in JSON:
+In this demonstration, you'll be interacting with Profiles, which consist of "first name" and "last name". The Couchbase database will contain one "bucket" that contains profile documents. Each document will be represented in JSON:
 
 [source,json]
 ----
@@ -27,7 +27,7 @@ In this demonstration, you'll be interacting with Profiles, which consist of "fi
 }
 ----
 
-And each document will have a key that is the username of the profile.
+And each document will have a key that uniquely identifies the document.
 
 == What you'll need
 
@@ -61,10 +61,10 @@ Now let's setup the ASP.NET app to be able to connect to Couchbase. The first th
 `/Starter/Global.asax.cs`
 [source,c#,indent=0]
 ----
-include::starter_complete/Starter/Starter/Global.asax.cs[tag=Application_Start]
+include::starter_complete/Starter/Starter/Global.asax.cs[tag=Global]
 ----
 
-You'll also need to specify credentials. Starting in Couchbase 5, buckets no longer have passwords. Instead, you can create a "user" in Couchbase and give it access to buckets via roles. Here, I'm creating a user with full bucket access permission:
+You'll also need to specify credentials. Starting in Couchbase 5, buckets no longer have passwords. Instead, you can create a "user" in Couchbase and give it access to buckets via roles. Here, I've created a user with full "Bucket Full Access" permission to the "hello-couchbase" bucket:
 
 image:image006-adduser.png[Add Couchbase user]
 
@@ -72,7 +72,7 @@ Once the `ClusterHelper` is initialized, we can use it to access buckets.
 
 ==== Data model and data access
 
-In C#, you can model a Couchbase document by using a Plain Old CLR Object (POCO). Let's model a very simple `Profile` class. Although C# and Couchbase can certainly handle more complexity, the goal of this guide is to get you up and running. We will explore more complex data models in other guides.
+In C#, you can model a Couchbase document by using a Plain Old CLR Object (POCO). Let's model a very simple `Profile` class.
 
 `/Starter/Models/Profile.cs`
 [source,c#,indent=0]
@@ -90,9 +90,10 @@ Now let's create a class that will access Couchbase data. Locate and open `Profi
 include::starter_complete/Starter/Starter/Models/ProfileRepository.cs[tag=ProfileRepository]
 ----
 
-For this guide, I'm going to skip talking about `ScanConsistency`. There are trade-offs to consider when using different ScanConsistency options. However, RequestPlus is the easiest to use for a simple guide like this one.
+_Notes:_
 
-Also, under normal circumstances, we'd prefer the `IBucket` to be injected with an IoC container, but it is omitted from this guide for the sake of simplicity.
+* _I'm not covering `ScanConsistency` in this guide. There are trade-offs to consider when using different ScanConsistency options. RequestPlus is the easiest to use for a simple guide like this one._
+* _Under normal circumstances, we'd prefer the `IBucket` to be injected with an IoC container, but that's not part of this guide._
 
 With this repository, we can perform all of the CRUD operations. Let's discuss each method individually:
 
@@ -102,7 +103,7 @@ Each document in a Couchbase bucket has a unique key. Think of a bucket as a gia
 
 *GetAll*
 
-This method uses the Couchbase N1QL (Non-First Normal Form Query Language). N1QL is a superset of SQL, and allows you to construct very powerful queries. In this case, we're simply getting all fields (and one META field) from all Profile documents with no limits or ordering. But paging, ordering, filtering, and many other powerful things can be done with a N1QL query. If you don't want to write SQL strings, check out the link:https://github.com/couchbaselabs/Linq2Couchbase[Linq2Couchbase] library (not officially supported by Couchbase, yet, but an amazing tool).
+This method uses the Couchbase N1QL (Non 1st-Normal-Form Query Language). N1QL is a superset of SQL, and allows you to construct very powerful queries. In this case, we're SELECTing all fields (and one META field) from all Profile documents with no limits or ordering. But paging, ordering, filtering, and many other powerful things can be done with a N1QL query. If you don't want to write SQL strings, check out the link:https://github.com/couchbaselabs/Linq2Couchbase[Linq2Couchbase] library (not officially supported by Couchbase, yet, but an amazing tool).
 
 *Save*
 
@@ -112,7 +113,7 @@ If a document with the key already exists, it will update the value of the docum
 
 If a document with the key doesn't exist, a new document will be created with that key. The only restriction on keys is that they must be unique within a bucket. I'm choosing to assign a GUID as the key. If a `Profile` comes into the `Save` method and doesn't have an ID (i.e. it's a 'new' profile), then it is assigned a new GUID.
 
-Also notice that I've chosen to explicitly map the `Profile` parameter to a new anonymous object. I've done this because I don't want to store the Id inside of the document. Doing so isn't *wrong*, but it's redundant, and could potentially get out of sync with the actual key. There are many approaches to this, but this is the simplest way to do it right now.
+Also notice that I've chosen to explicitly map the `Profile` parameter to a new anonymous object. I've done this because I don't want to store the Id inside of the document. Doing so isn't *wrong*, but it's redundant, and could potentially get out of sync with the actual key. There are many approaches to key design, but this is the simplest way to do it right now.
 
 *Delete*
 
@@ -120,7 +121,7 @@ Delete will remove the document with the given key.
 
 ==== CRUD ASP.NET WebAPI actions:
 
-The sample code has a WebAPI controller `HomeController` already set up with some Actions and Views. The actions use the repository you created and pass along objects to the views. Views. The actions use the repository you created and pass along objects to the views.
+The sample code has a WebAPI controller `HomeController` already set up with some Actions. The actions use the repository you created and return results as JSON.
 
 You can view these by starting at `HomeController.cs`.
 
@@ -142,11 +143,11 @@ After using that, a new document should appear in the Couchbase bucket. You can 
 
 image:image003-getall.png[Get all profiles via API using Postman]
 
-Now, pick an ID from one of these results to make changes to. Make some changes to the fields (for instance, change the firstName) and POST to the Save endpoint.
+Now, pick a document from these results and copy the JSON. Make some changes to the fields (for instance, change the FirstName) in that JSON and POST the new JSON to the Save endpoint.
 
 image:image004-save.png[Update profile via API using Postman]
 
-We've covered Read, Create, Update, so all that's left is delete. Pick an ID from one of the documents to delete and use Postman to create a DELETE request.
+We've covered Read, Create, Update, so all that's left is Delete. Pick a document to delete and make note of its ID. Use Postman to create a DELETE request (using the ID in the URL).
 
 image:image005-delete.png[Delete profile via API using Postman]
 

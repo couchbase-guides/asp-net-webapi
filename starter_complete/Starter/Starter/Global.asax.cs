@@ -9,7 +9,7 @@ namespace Starter
 {
     public class WebApiApplication : System.Web.HttpApplication
     {
-        // tag::Application_Start[]
+        // tag::Global[]
         protected void Application_Start()
         {
             GlobalConfiguration.Configure(WebApiConfig.Register);
@@ -19,11 +19,11 @@ namespace Starter
                 Servers = new List<Uri> {new Uri("http://localhost:8091")}
             }, new PasswordAuthenticator("myuser", "mypassword"));
         }
-        // end::Application_Start[]
 
         protected void Application_End()
         {
             ClusterHelper.Close();
         }
+        // end::Global[]
     }
 }
