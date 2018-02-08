@@ -20,5 +20,10 @@ namespace Starter
             }, new PasswordAuthenticator("myuser", "mypassword"));
         }
         // end::Application_Start[]
+
+        protected void Application_End()
+        {
+            ClusterHelper.Close();
+        }
     }
 }
