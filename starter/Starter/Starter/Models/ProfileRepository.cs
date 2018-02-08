@@ -1,18 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
-using Couchbase;
-using Couchbase.Core;
-using Couchbase.N1QL;
+//using Couchbase;
+//using Couchbase.Core;
+//using Couchbase.N1QL;
 
 namespace Starter.Models
 {
     public class ProfileRepository
     {
-        private readonly IBucket _bucket;
+        //TODO: private readonly IBucket _bucket;
 
         public ProfileRepository()
         {
-            _bucket = ClusterHelper.GetBucket("hello-couchbase");
+            //TODO: _bucket = ClusterHelper.GetBucket("hello-couchbase");
         }
 
         public Profile GetProfileByKey(string key)

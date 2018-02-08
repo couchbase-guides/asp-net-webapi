@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Web.Http;
-using Couchbase;
-using Couchbase.Authentication;
-using Couchbase.Configuration.Client;
+//using Couchbase;
+//using Couchbase.Authentication;
+//using Couchbase.Configuration.Client;
 
 namespace Starter
 {
