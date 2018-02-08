@@ -1,0 +1,157 @@
+:imagesdir: images
+:couchbase_version: 5.x
+:toc:
+:project_id: gs-asp-net-webapi
+:icons: font
+:source-highlighter: prettify
+:tags: asp.net,.net,c#,webapi
+
+= Getting started with Couchbase on ASP.NET MVC
+
+With this guide you'll create a "hello world" ASP.NET WebAPI application that uses link:http://developer.couchbase.com[Couchbase].
+
+== What you'll build
+
+You'll build an ASP.NET WebAPI site that will run on your development machine. You will access it through an API testing tool like link:https://www.getpostman.com/[Postman] or you can link:https://github.com/domaindrivendev/Swashbuckle[use Swashbuckle to add a Swagger UI].
+
+With this site, you'll be able to perform all the basic CRUD (Create,Read,Update,Delete) operations.
+
+In this demonstration, you'll be interacting with Profiles, which consist of "first name" and "last name". The Couchbase database will contain one "bucket" that contains people documents. Each document will be represented in JSON:
+
+[source,json]
+----
+{
+    "firstName": "Matt",
+    "lastName": "Groves",
+    "type": "Profile"
+}
+----
+
+And each document will have a key that is the username of the profile.
+
+== What you'll need
+
+* 15-30 minutes
+* Visual Studio 2017 installed
+* NuGet
+* link:http://www.couchbase.com/nosql-databases/downloads[Couchbase Server 5.x] (follow the instructions to install Couchbase and create a bucket - this guide assumes you will have it running locally).
+
+== How to complete this guide
+
+This guide assumes you have some familiarity with the ASP.NET WebAPI framework. You should understand at least the basics of: Controllers and C#.
+
+== Build Setup
+
+Get the "starter" source code sample that I've made available. Open git bash, clone the repo using `git clone` command. From Visual Studio, File->Open Project/Solution, navigate to the "starter" folder, and select the `Starter.sln` solution file.
+
+You should be able to compile that project in Visual Studio, and you should also be able to run the website. When you do so before completing this guide, you'll get some exceptions which contain hints on what code you need to write.
+
+== Code
+
+Now that we're starting from a common baseline, let's start writing some code to use Couchbase.
+
+==== Adding the necessary libraries
+
+The first thing we'll need to do is add the Couchbase .NET client. You can do this with the NuGet UI by right-clicking on "References", clicking "Manage NuGet Packages", clicking "Browse", and then searching for "CouchbaseNetClient".
+
+image:image007-nuget.png[NuGet]
+
+Now let's setup the ASP.NET app to be able to connect to Couchbase. The first thing we need to do is locate the Couchbase Cluster. The best place to do this is in the `Global.asax.cs` when the application starts. At a minimum, we need to specify one node in the cluster, and give that to the `ClusterHelper`. This only needs to be done once in `Application_Start`. When the application ends, it's a good idea to close the `ClusterHelper` in order to clean up and dispose of resources that aren't needed.
+
+`/Starter/Global.asax.cs`
+[source,c#,indent=0]
+----
+include::starter_complete/Starter/Starter/Global.asax.cs[tag=Application_Start]
+----
+
+You'll also need to specify credentials. Starting in Couchbase 5, buckets no longer have passwords. Instead, you can create a "user" in Couchbase and give it access to buckets via roles. Here, I'm creating a user with full bucket access permission:
+
+image:image006-adduser.png[Add Couchbase user]
+
+Once the `ClusterHelper` is initialized, we can use it to access buckets.
+
+==== Data model and data access
+
+In C#, you can model a Couchbase document by using a Plain Old CLR Object (POCO). Let's model a very simple `Profile` class. Although C# and Couchbase can certainly handle more complexity, the goal of this guide is to get you up and running. We will explore more complex data models in other guides.
+
+`/Starter/Models/Profile.cs`
+[source,c#,indent=0]
+----
+include::starter_complete/Starter/Starter/Models/Profile.cs[tag=Profile]
+----
+
+Note that I'm creating a string property of `Type`, which will always be "Profile". A Couchbase bucket is a heterogenous collection of documents, so this is a convenient way to set Profile documents apart. You'll see shortly how that property gets used.
+
+Now let's create a class that will access Couchbase data. Locate and open `ProfileRespository.cs`. There are many data access patterns that you can explore, but let's look at a simple repository pattern. This repository covers all of the basic "CRUD" operations.
+
+`/Starter/Models/ProfileRepository.cs`
+[source,c#,indent=0]
+----
+include::starter_complete/Starter/Starter/Models/ProfileRepository.cs[tag=ProfileRepository]
+----
+
+For this guide, I'm going to skip talking about `ScanConsistency`. There are trade-offs to consider when using different ScanConsistency options. However, RequestPlus is the easiest to use for a simple guide like this one.
+
+Also, under normal circumstances, we'd prefer the `IBucket` to be injected with an IoC container, but it is omitted from this guide for the sake of simplicity.
+
+With this repository, we can perform all of the CRUD operations. Let's discuss each method individually:
+
+*GetProfileByKey*
+
+Each document in a Couchbase bucket has a unique key. Think of a bucket as a giant `Dictionary<string,string>` (that's a gross oversimplification, but it's a starting point). This method will return a C# object created by deserializing the JSON document. The JSON document is found in Couchbase given a key. This is an extremely fast operation in Couchbase, and it's always good to work with keys when possible.
+
+*GetAll*
+
+This method uses the Couchbase N1QL (Non-First Normal Form Query Language). N1QL is a superset of SQL, and allows you to construct very powerful queries. In this case, we're simply getting all fields (and one META field) from all Profile documents with no limits or ordering. But paging, ordering, filtering, and many other powerful things can be done with a N1QL query. If you don't want to write SQL strings, check out the link:https://github.com/couchbaselabs/Linq2Couchbase[Linq2Couchbase] library (not officially supported by Couchbase, yet, but an amazing tool).
+
+*Save*
+
+Save is using "upsert", which operates on the document key.
+
+If a document with the key already exists, it will update the value of the document (this is the UP in UPsert).
+
+If a document with the key doesn't exist, a new document will be created with that key. The only restriction on keys is that they must be unique within a bucket. I'm choosing to assign a GUID as the key. If a `Profile` comes into the `Save` method and doesn't have an ID (i.e. it's a 'new' profile), then it is assigned a new GUID.
+
+Also notice that I've chosen to explicitly map the `Profile` parameter to a new anonymous object. I've done this because I don't want to store the Id inside of the document. Doing so isn't *wrong*, but it's redundant, and could potentially get out of sync with the actual key. There are many approaches to this, but this is the simplest way to do it right now.
+
+*Delete*
+
+Delete will remove the document with the given key.
+
+==== CRUD ASP.NET WebAPI actions:
+
+The sample code has a WebAPI controller `HomeController` already set up with some Actions and Views. The actions use the repository you created and pass along objects to the views. Views. The actions use the repository you created and pass along objects to the views.
+
+You can view these by starting at `HomeController.cs`.
+
+Note that I've omitted any sort of error checking or validation on these, but normally it's vital that you check/validate input before handing it off to a repository.
+
+Once you've implemented the repository and added the setup code to `Global.asax.cs`, you should be ready to compile and run.
+
+== Run
+
+After compiling and running the site for the first time, you should be taken to the Home Index page, which will show you a message that the WebAPI is running.
+
+image:image001.png[Initial view in browser]
+
+Now open Postman (or navigate to the Swagger UI, if you've installed that instead) and try POSTing to the "Add" endpoint.
+
+image:image002-add.png[Add profile via API using Postman]
+
+After using that, a new document should appear in the Couchbase bucket. You can also try the "GetAll" endpoint.
+
+image:image003-getall.png[Get all profiles via API using Postman]
+
+Now, pick an ID from one of these results to make changes to. Make some changes to the fields (for instance, change the firstName) and POST to the Save endpoint.
+
+image:image004-save.png[Update profile via API using Postman]
+
+We've covered Read, Create, Update, so all that's left is delete. Pick an ID from one of the documents to delete and use Postman to create a DELETE request.
+
+image:image005-delete.png[Delete profile via API using Postman]
+
+After deleting, that profile should no longer be in the Couchbase bucket, and it shouldn't be in the "Get All" list anymore either.
+
+== Summary
+
+Congratulations! You've just developed an ASP.NET WebAPI application that uses Couchbase.
