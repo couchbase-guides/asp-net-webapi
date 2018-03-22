@@ -6,7 +6,7 @@
 :source-highlighter: prettify
 :tags: asp.net,.net,c#,webapi
 
-= Getting started with Couchbase on ASP.NET MVC
+= Getting started with Couchbase on ASP.NET WebAPI
 
 With this guide you'll create a "hello world" ASP.NET WebAPI application that uses link:http://developer.couchbase.com[Couchbase].
 
